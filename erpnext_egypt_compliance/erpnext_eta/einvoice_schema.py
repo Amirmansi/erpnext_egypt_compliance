@@ -472,35 +472,43 @@ def get_receiver():
         )
     )
     
-    customer_address_name = customer.get("customer_primary_address")
-    if customer_type == "F" and not customer_address_name:
-        frappe.throw(
-            _("Customer {0} must have a primary address.").format(customer.get("name")),
-            title=_("ETA Validation"),
-        )
+   customer_address_name = customer.get("customer_primary_address")
 
-    if customer_address_name:
-        customer_address = frappe.get_doc("Address", customer_address_name)
-        address = ReceiverAddress(
-            country=frappe.db.get_value("Country", customer_address.country, "code"),
-            governate=customer_address.state or "Ain Shams Street",
-            regionCity=customer_address.city or "Cairo",
-            street=customer_address.address_line1 or "Ain Shams",
-            buildingNumber=customer_address.building_number or "B0"
-            # postalCode=customer_address.pincode or None,
-            # floor=customer_address.floor or None,
-            # room=customer_address.room or None,
-            # landmark=customer_address.landmark or None,
-            # additionalInformation=customer_address.address_line2 or None,
-        )
-
-    eta_receiver = Receiver(
-        type=customer_type,
-        id=customer_id,
-        name=customer.get("customer_name"),
-        address=address,
+# تحقق من العملاء من النوع F
+if customer_type == "F" and not customer_address_name:
+    frappe.throw(
+        _("Customer {0} must have a primary address.").format(customer.get("name")),
+        title=_("ETA Validation"),
     )
-    return eta_receiver
+
+# قيمة افتراضية للعنوان لأي حالة أخرى
+address = ReceiverAddress(
+    country="EG",
+    governate="Ain Shams Street",
+    regionCity="Cairo",
+    street="Ain Shams",
+    buildingNumber="B0"
+)
+
+# إذا كان هناك عنوان للعميل، استخدمه
+if customer_address_name:
+    customer_address = frappe.get_doc("Address", customer_address_name)
+    address = ReceiverAddress(
+        country=frappe.db.get_value("Country", customer_address.country, "code") or "EG",
+        governate=customer_address.state or "Ain Shams Street",
+        regionCity=customer_address.city or "Cairo",
+        street=customer_address.address_line1 or "Ain Shams",
+        buildingNumber=customer_address.building_number or "B0"
+    )
+
+eta_receiver = Receiver(
+    type=customer_type,
+    id=customer_id,
+    name=customer.get("customer_name"),
+    address=address,
+)
+return eta_receiver
+
 
 def validate_receiver_compliance(receiver: Receiver):
     """Validate ETA compliance rules for receiver before submission."""
