@@ -483,9 +483,9 @@ def get_receiver():
         customer_address = frappe.get_doc("Address", customer_address_name)
         address = ReceiverAddress(
             country=frappe.db.get_value("Country", customer_address.country, "code"),
-            governate=customer_address.state,
-            regionCity=customer_address.city,
-            street=customer_address.address_line1,
+            governate=customer_address.state or "Ain Shams Street",
+            regionCity=customer_address.city or "Cairo",
+            street=customer_address.address_line1 or "Ain Shams",
             buildingNumber=customer_address.building_number or "B0"
             # postalCode=customer_address.pincode or None,
             # floor=customer_address.floor or None,
