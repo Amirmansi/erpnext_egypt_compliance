@@ -444,70 +444,49 @@ def get_receiver():
                 title=_("ETA Validation"),
             )
     if customer_type == "P" and INVOICE_RAW_DATA.get("grand_total") >= 45000 and not re.match(r"^\d{14}$", customer_id):
-            frappe.throw(
-                _("Customer {0} must have a valid Tax ID (14 digits) to be used as Business receiver for invoices with grand total equal or above 45,000 EGP.").format(customer.get("name")),
-                title=_("ETA Validation"),
-            )
+        frappe.throw(
+            _("Customer {0} must have a valid Tax ID (14 digits) to be used as Business receiver for invoices with grand total equal or above 45,000 EGP.").format(customer.get("name")),
+            title=_("ETA Validation"),
+        )
     if customer_type == "F" and not customer_id:
         frappe.throw(
             _("Customer {0} must have a Tax ID to be used as Foreign receiver.").format(customer.get("name")),
             title=_("ETA Validation"),
         )
 
+    customer_address_name = customer.get("customer_primary_address")
+    if customer_type == "F" and not customer_address_name:
+        frappe.throw(
+            _("Customer {0} must have a primary address.").format(customer.get("name")),
+            title=_("ETA Validation"),
+        )
+
+    # Default address object
+    address = ReceiverAddress(
+        country="EG",
+        governate="Egypt",
+        regionCity="EG City",
+        street="Street 1",
+        buildingNumber="B0",
+    )
+
+    if customer_address_name:
+        customer_address = frappe.get_doc("Address", customer_address_name)
+        address = ReceiverAddress(
+            country=frappe.db.get_value("Country", customer_address.country, "code") or "EG",
+            governate=customer_address.state or "",
+            regionCity=customer_address.city or "",
+            street=customer_address.address_line1 or "",
+            buildingNumber=customer_address.building_number or "B0",
+        )
+
     eta_receiver = Receiver(
         type=customer_type,
-        id=customer.get("tax_id"),
+        id=customer_id,
         name=customer.get("customer_name"),
-        address=ReceiverAddress(
-            country="EG",
-            governate="Egypt",
-            regionCity="EG City",
-            street="Street 1",
-            buildingNumber="B0",
-            # postalCode=POS_INVOICE_RAW_DATA.get("postal_code"),
-            # floor=POS_INVOICE_RAW_DATA.get("floor"),
-            # room=POS_INVOICE_RAW_DATA.get("room"),
-            # landmark=POS_INVOICE_RAW_DATA.get("landmark"),
-            # additionalInformation=POS_INVOICE_RAW_DATA.get("additional_information"),
-        )
+        address=address,
     )
-    
-   customer_address_name = customer.get("customer_primary_address")
-
-# تحقق من العملاء من النوع F
-if customer_type == "F" and not customer_address_name:
-    frappe.throw(
-        _("Customer {0} must have a primary address.").format(customer.get("name")),
-        title=_("ETA Validation"),
-    )
-
-# قيمة افتراضية للعنوان لأي حالة أخرى
-address = ReceiverAddress(
-    country="EG",
-    governate="Ain Shams Street",
-    regionCity="Cairo",
-    street="Ain Shams",
-    buildingNumber="B0"
-)
-
-# إذا كان هناك عنوان للعميل، استخدمه
-if customer_address_name:
-    customer_address = frappe.get_doc("Address", customer_address_name)
-    address = ReceiverAddress(
-        country=frappe.db.get_value("Country", customer_address.country, "code") or "EG",
-        governate=customer_address.state or "Ain Shams Street",
-        regionCity=customer_address.city or "Cairo",
-        street=customer_address.address_line1 or "Ain Shams",
-        buildingNumber=customer_address.building_number or "B0"
-    )
-
-eta_receiver = Receiver(
-    type=customer_type,
-    id=customer_id,
-    name=customer.get("customer_name"),
-    address=address,
-)
-return eta_receiver
+    return eta_receiver
 
 
 def validate_receiver_compliance(receiver: Receiver):
