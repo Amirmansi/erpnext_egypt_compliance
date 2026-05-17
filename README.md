@@ -99,11 +99,11 @@ To verify the installation:
 
 ## 📚 Documentation
 
-For detailed documentation, visit: [EG Compliance Documentation](https://docs.axentor.app/EG%20Compliance/Introduction)
+For detailed documentation, visit: [EG Compliance Documentation](https://docs.axentor.co/EG%20Compliance/Introduction)
 
 ## 📹 Videos
 
-- [ERPNext Egypt Compliance App by Axentor](https://docs.axentor.app/EG%20Compliance/erpnext-egypt-compliance-app-by-axentor)
+- [ERPNext Egypt Compliance App by Axentor](https://docs.axentor.co/EG%20Compliance/erpnext-egypt-compliance-app-by-axentor)
 
 ## 🤝 Contributing
 
