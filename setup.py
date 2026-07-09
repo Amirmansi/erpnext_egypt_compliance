@@ -1,6 +1,9 @@
+import os
+
 from setuptools import setup, find_packages
 
-with open("requirements.txt") as f:
+here = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(here, "requirements.txt")) as f:
     install_requires = f.read().strip().split("\n")
 
 # get version from __version__ variable in erpnext_egypt_compliance/__init__.py

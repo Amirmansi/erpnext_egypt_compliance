@@ -23,18 +23,18 @@ def get_data(filters):
 
     for stat in eta_invoice_status:
         results = frappe.db.sql(
-            f"""
+            """
 			SELECT
 				eta_status AS inv_status ,
 				COUNT(name) AS invs_count,
 				Sum(grand_total) AS total
 			FROM `tabSales Invoice`
-			WHERE eta_status = '{stat}'
+			WHERE eta_status = %(stat)s
 			And docstatus = 1
-			AND company = '{company}'
-			AND posting_date >= '{from_date}' AND posting_date <= '{to_date}'
+			AND company = %(company)s
+			AND posting_date >= %(from_date)s AND posting_date <= %(to_date)s
 			Group By inv_status;""",
-            filters,
+            {"stat": stat, "company": company, "from_date": from_date, "to_date": to_date},
             as_dict=1,
         )
 
@@ -124,20 +124,21 @@ def get_childs(filters, data, stat):
 		FROM
 			`tabSales Invoice`
 		WHERE
-			eta_status = '{stat}'
-			AND company = '{company}'
+			eta_status = %(stat)s
+			AND company = %(company)s
 			AND docstatus = 1
-			AND posting_date >= '{from_date}' AND posting_date <= '{to_date}'
+			AND posting_date >= %(from_date)s AND posting_date <= %(to_date)s
 		GROUP BY
 			posting_date
 		ORDER BY
 			posting_date ,
-			total;""".format(
-            stat=stat,
-            company=filters.get("company"),
-            from_date=filters.get("from_date"),
-            to_date=filters.get("to_date"),
-        ),
+			total;""",
+        {
+            "stat": stat,
+            "company": filters.get("company"),
+            "from_date": filters.get("from_date"),
+            "to_date": filters.get("to_date"),
+        },
         as_dict=1,
     )
 

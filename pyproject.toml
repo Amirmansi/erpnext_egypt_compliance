@@ -9,6 +9,9 @@ name = "erpnext_egypt_compliance"
 version = "0.0.1"
 dependencies = ["pytest_frappe", "pydantic"]
 
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<16.0.0-dev"
+
 [tool.ruff]
 select = [
     "E",  # pycodestyle errors

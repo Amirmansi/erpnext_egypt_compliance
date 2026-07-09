@@ -19,10 +19,12 @@ doctype_js = {
 
 doc_events = {
     "Sales Invoice": {
-        "before_submit": "erpnext_egypt_compliance.erpnext_eta.pre_validation.validate_eta_invoice_before_submit",
+        "before_submit": "erpnext_egypt_compliance.erpnext_eta.pre_validation.validate_eta_before_submit",
     },
 }
 
+after_migrate = "erpnext_egypt_compliance.migrate.after_migrate"
+after_uninstall = "erpnext_egypt_compliance.uninstall.after_uninstall"
 
 # User Data Protection
 # --------------------
@@ -110,6 +112,9 @@ fixtures = [
                     "Company-eta_issuer_name",
                     "Company-eta_default_branch",
                     "Company-eta_default_activity_code",
+                    "Company-custom_enable_ereceipt",
+                    "Company-show_discount_on_tax_invoice",
+                    "Price List-show_discount_on_tax_invoice",
                     # "Company-eta_document_type_version",
                     # "Company-eta_company_environment",
                     "Address-building_number",

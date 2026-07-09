@@ -30,7 +30,7 @@ This integration equips ERPNext users with the necessary tools to comply with Eg
 - Valid Egyptian Tax Authority credentials
 - Python 3.8+ (if installing from source)
 - Git (if installing from source)
-
+- To Download the Latest Compatible E-Invoice Signer Use This link: https://github.com/Axentorllc/erpnext_egypt_compliance/releases/download/v1.5/ERPNext.ETA.Signer.-.By.Axentor.-.v1.5.zip
 ### Installation
 
 ```bash
@@ -99,11 +99,11 @@ To verify the installation:
 
 ## 📚 Documentation
 
-For detailed documentation, visit: [EG Compliance Documentation](https://docs.axentor.app/EG%20Compliance/Introduction)
+For detailed documentation, visit: [EG Compliance Documentation](https://docs.axentor.co/EG%20Compliance/Introduction)
 
 ## 📹 Videos
 
-- [ERPNext Egypt Compliance App by Axentor](https://docs.axentor.app/EG%20Compliance/erpnext-egypt-compliance-app-by-axentor)
+- [ERPNext Egypt Compliance App by Axentor](https://docs.axentor.co/EG%20Compliance/erpnext-egypt-compliance-app-by-axentor)
 
 ## 🤝 Contributing
 

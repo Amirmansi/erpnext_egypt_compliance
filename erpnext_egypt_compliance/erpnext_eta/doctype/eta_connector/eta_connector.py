@@ -78,7 +78,8 @@ class ETAConnector(Document):
                 self.access_token = eta_response.get("access_token")
                 self.expires_in = frappe.utils.add_to_date(datetime.now(), seconds=eta_response.get("expires_in"))
                 self.save()
-                frappe.db.commit()
+                # Persist the refreshed token immediately so concurrent requests reuse it instead of hitting the IDP again.
+                frappe.db.commit()  # nosemgrep: frappe-manual-commit
                 return eta_response.get("access_token")
 
     def get_headers(self):
@@ -92,7 +93,6 @@ class ETAConnector(Document):
         headers = self.get_headers()
         _path = self.DOCUMENT_TYPES + f"/{doc_id}"
         eta_response = self.session.get(_path, headers=headers)
-        print(eta_response.text)
 
 
     def gracefully_autofetch_eta_status(self):
@@ -101,4 +101,5 @@ class ETAConnector(Document):
         )
         for docname in docs:
             self.update_eta_docstatus(docname)
-            frappe.db.commit()
+            # Commit per iteration so one bad doc does not roll back the rest of the batch.
+            frappe.db.commit()  # nosemgrep: frappe-manual-commit

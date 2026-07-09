@@ -43,6 +43,7 @@ frappe.ui.form.on('POS Invoice', {
 					args: {
 						docname: frm.docname,
 						pos_profile: frm.doc.pos_profile,
+						doctype: frm.doc.doctype,
 					},
 					freeze: true,
 					freeze_message: __("Submitting ..."),
@@ -72,7 +73,7 @@ frappe.ui.form.on('POS Invoice', {
 				console.log(r.message)
 				if (!r.exc) {
 					frappe.show_alert("E-Receipt Status Updated");
-					cur_frm.reload_doc();
+					frm.reload_doc();
 				}
 			}
 		})

@@ -22,7 +22,7 @@ def download_eta_inv_json(docname):
 
         return download_eta_invoice_json(docname, file_content)
     except Exception as e:
-        frappe.throw(_("{0}").format(e), title=_("ETA Validation"))
+        frappe.throw(_("{0}").format(str(e)), title=_("ETA Validation"))
 
 @frappe.whitelist()
 def get_eta_pdf(docname):
@@ -88,6 +88,10 @@ def get_batch_invoices(company):
                 inv = get_invoice_asjson(docname, as_dict=True)
                 einvoices.append(inv)
 
+        if not einvoices:
+            frappe.logger().error(f"No invoices to submit for {company}")
+            return  
+        
         submit_einvoice_background_logger(einvoices, connector , submitted_by="Agent")
                
                  

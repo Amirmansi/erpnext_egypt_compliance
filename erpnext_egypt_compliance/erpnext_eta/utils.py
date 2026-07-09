@@ -75,7 +75,8 @@ def autofetch_eta_status(company):
 	docs = frappe.get_all("Sales Invoice", filters=[["eta_status", "=", "Submitted"]], pluck="name")
 	for docname in docs:
 		update_eta_docstatus(connector,docname)
-	frappe.db.commit()
+	# Background job — explicit commit so status updates are visible immediately after the run.
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit
 
 def update_eta_docstatus(connector, docname):
         headers = connector.get_headers()

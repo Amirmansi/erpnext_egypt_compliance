@@ -17,6 +17,9 @@ from erpnext_egypt_compliance.erpnext_eta.ereceipt_schema import ItemWiseTaxDeta
 from erpnext_egypt_compliance.erpnext_eta.legacy_einvoice import _abs_values
 INVOICE_RAW_DATA = {}
 COMPANY_DATA = {}
+# Whether item-level discounts are shown on the ETA tax invoice for the current
+# invoice. Resolved per invoice in set_global_raw_data(); see _resolve_show_discount.
+SHOW_DISCOUNT = True
 
 
 class Signature(BaseModel):
@@ -343,7 +346,8 @@ def get_invoice_asjson(docname: str, as_dict: bool=False):
     invoice_lines = get_invoice_lines()
     total_discount_amount = calculate_total_discount_amount(invoice_lines)
     total_sales_amount = sum([line.salesTotal for line in invoice_lines])
-    net_amount, total_amount = get_net_total_amount()
+    net_amount, __legacy_total_amount = get_net_total_amount()
+    total_amount = sum(line.total for line in invoice_lines)
     tax_totals = get_tax_totals(invoice_lines)
     signatures = get_signatures()
 
@@ -368,12 +372,29 @@ def get_invoice_asjson(docname: str, as_dict: bool=False):
         totalSalesAmount=total_sales_amount,
         netAmount=net_amount,
         totalAmount=total_amount,
-        totalItemsDiscountAmount=0.0,
+        totalItemsDiscountAmount=total_discount_amount,
         taxTotals=tax_totals,
         signatures=signatures,
     )
 
     return invoice.json(indent=4, ensure_ascii=False) if not as_dict else _abs_values(invoice.model_dump(exclude_none=True, exclude_unset=True))
+
+
+def _resolve_show_discount(company_data: Dict, selling_price_list: Optional[str]) -> bool:
+    """Resolve whether item-level discounts are shown on the ETA tax invoice.
+
+    The Company `show_discount_on_tax_invoice` checkbox is the default. If the
+    invoice's selling Price List has the checkbox ticked it turns the discount on
+    regardless of the Company setting; an unticked Price List falls back to the
+    Company setting.
+    """
+    company_flag = bool(company_data.get("show_discount_on_tax_invoice"))
+    price_list_flag = False
+    if selling_price_list:
+        price_list_flag = bool(
+            frappe.get_value("Price List", selling_price_list, "show_discount_on_tax_invoice")
+        )
+    return company_flag or price_list_flag
 
 
 def set_global_raw_data(docname: str) -> None:
@@ -397,12 +418,18 @@ def set_global_raw_data(docname: str) -> None:
 
     global INVOICE_RAW_DATA
     global COMPANY_DATA
+    global SHOW_DISCOUNT
 
     # Set the global POS data
     INVOICE_RAW_DATA = frappe.get_doc("Sales Invoice", docname).as_dict()
 
     # Set the global company data
     COMPANY_DATA = frappe.get_doc("Company", INVOICE_RAW_DATA.get("company")).as_dict()
+
+    # Resolve whether item-level discounts are shown on the ETA tax invoice
+    SHOW_DISCOUNT = _resolve_show_discount(
+        COMPANY_DATA, INVOICE_RAW_DATA.get("selling_price_list")
+    )
 
     _pos_total_qty()
     _add_branch_data()
@@ -519,48 +546,26 @@ def _get_tax_amount(item_tax_detail: float, net_rate: float, qty: float, _exchan
     return item_tax_detail * net_rate * qty * _exchange_rate
 
 
-def _get_item_taxable_items(_item_data: Dict):
+def _get_item_taxable_items(_item_data: Dict, net_total: float):
+    """Calculate taxable items - use net_total as tax base."""
     taxable_items = []
     if INVOICE_RAW_DATA.get("taxes"):
         for tax in INVOICE_RAW_DATA.get("taxes"):
             if tax.get("disable_eta"):
                 continue
 
+            tax_type = tax.get("eta_tax_type")
+            sub_type = tax.get("eta_tax_sub_type")
+
             item_wise_tax_detail_asjson = json.loads(tax.get("item_wise_tax_detail"))
             items_tax_detail_list = ItemWiseTaxDetails(data=item_wise_tax_detail_asjson)
             item_tax_detail = items_tax_detail_list.data.get(_item_data.get("item_code"))
 
-            # default values
-            tax_type = tax.get("eta_tax_type")
-            sub_type = tax.get("eta_tax_sub_type")
-            rate, amount = None, None
+            rate = item_tax_detail[0]
 
-            if tax.get("charge_type") in ("On Net Total", "On Previous Row Total"):
-                rate = item_tax_detail[0]
-
-                item_rate = (
-                    _item_data.get("rate")
-                    if INVOICE_RAW_DATA.get("_foreign_company_currency")
-                    else _item_data.get("net_rate")
-                )
-                amount = _get_tax_amount(
-                    (item_tax_detail[0] / 100),
-                    item_rate,
-                    _item_data.get("qty"),
-                    _item_data.get("_exchange_rate") or 1,
-                )
-            elif tax.get("charge_type") == "Actual" and (
-                INVOICE_RAW_DATA.get("is_consolidated") or INVOICE_RAW_DATA.get("is_pos")
-            ):
-                if tax_type == "T1":
-                    rate = 14
-                    item_rate = _item_data.get("net_rate")
-                    amount = _get_tax_amount(
-                        (item_tax_detail[0] / 100),
-                        item_rate,
-                        _item_data.get("qty"),
-                        _item_data.get("_exchange_rate") or 1,
-                    )
+            # HOTFIX: Use net_total (already in EGP) as tax base
+            # TODO: Test & Support the Tax Price inclusive.
+            amount = eta_round(net_total * rate / 100)
 
             taxable_items.append(
                 TaxableItem(
@@ -578,39 +583,48 @@ def _get_sales_and_net_totals(_item_data: Dict):
     item_base_amount = _item_data.get("base_amount")
     item_exchange_rate = INVOICE_RAW_DATA.get("conversion_rate") or _item_data.get("_exchange_rate") or 1
     item_net_amount = _item_data.get("net_amount")
+    base_list_rate = _item_data.get("base_price_list_rate") or 0.0
+    qty = _item_data.get("qty") or 0.0
 
     if INVOICE_RAW_DATA.get("currency") == "EGP":
-        _sales_total = _net_total = item_base_amount
+        _net_total = item_base_amount
     else:
-        _sales_total = _net_total = item_net_amount * item_exchange_rate
+        _net_total = item_net_amount * item_exchange_rate
+
+    # salesTotal is the pre-discount total; collapse it to netTotal when the
+    # discount is not shown so ETA receives salesTotal == netTotal (no discount).
+    if SHOW_DISCOUNT and base_list_rate:
+        _sales_total = base_list_rate * qty
+    else:
+        _sales_total = _net_total
 
     return _sales_total, _net_total
 
 
 def _get_item_unit_value(_item_data: Dict):
     """Get the item unit value."""
+    # When the discount is not shown, ignore the price list rate so amountEGP
+    # falls back to the net rate (the actual sale price, no discount declared).
+    base_list_rate = (_item_data.get("base_price_list_rate") or 0.0) if SHOW_DISCOUNT else 0.0
 
     if INVOICE_RAW_DATA.get("currency") == "EGP":
         return Value(
             currencySold="EGP",
-            amountEGP=_item_data.get("net_rate"),
+            amountEGP=base_list_rate if base_list_rate else _item_data.get("net_rate"),
         )
-    
+
     else:
         currency_sold = INVOICE_RAW_DATA.get("currency")
         currency_exchange_rate = _exchange_rate = INVOICE_RAW_DATA.get("conversion_rate")
-        amount_egp = _unit_price = _item_data.get("net_rate") * (_exchange_rate or 1)
-        
-
-        amount_sold = (
-            _item_data.get("rate")
-        )
+        list_rate = (_item_data.get("price_list_rate") or 0.0) if SHOW_DISCOUNT else 0.0
+        amount_egp = base_list_rate if base_list_rate else (_item_data.get("net_rate") * (_exchange_rate or 1))
+        amount_sold = list_rate if list_rate else _item_data.get("rate")
 
         return Value(
             currencySold=currency_sold,
             amountEGP=amount_egp,
-            amountSold = amount_sold,
-            currencyExchangeRate = currency_exchange_rate
+            amountSold=amount_sold,
+            currencyExchangeRate=currency_exchange_rate
         )
 
 def _get_item_code_and_type(_item_data: Dict):
@@ -636,10 +650,14 @@ def _get_item_data(_item_data: Dict):
     )
     unit_value = _get_item_unit_value(_item_data)
     sales_total, net_total = _get_sales_and_net_totals(_item_data)
-    taxable_items = _get_item_taxable_items(_item_data)
+    taxable_items = _get_item_taxable_items(_item_data, net_total)
     item_total = _get_item_total(net_total, taxable_items)
-    # TODO:
-    item_discount = None
+    discount_amt = eta_round(sales_total - net_total)
+    if SHOW_DISCOUNT and discount_amt > 0:
+        discount_rate = round(discount_amt / sales_total * 100, 5)
+        item_discount = [Discount(rate=discount_rate, amount=discount_amt)]
+    else:
+        item_discount = None
 
     return {
         "description": _item_data.get("item_name"),
@@ -707,26 +725,17 @@ def get_net_total_amount():
 
 
 def get_tax_totals(invoice_lines):
-    taxes = []
-    if INVOICE_RAW_DATA.get("taxes"):
-        for tax in INVOICE_RAW_DATA.get("taxes"):
-            if tax.get("disable_eta"):
-                continue
-            tax_type = tax.get("eta_tax_type")
-
-            is_foreign_currency = INVOICE_RAW_DATA.get("_foreign_company_currency")
-            _exchange_rate = INVOICE_RAW_DATA.get("_exchange_rate") or 1
-            if is_foreign_currency:
-                tax_amount = tax.get("base_tax_amount_after_discount_amount") * _exchange_rate
-            else:
-                tax_amount = tax.get("tax_amount_after_discount_amount")
-
-            is_consolidated_or_pos = INVOICE_RAW_DATA.get("is_consolidated") or INVOICE_RAW_DATA.get("is_pos")
-            if is_consolidated_or_pos:
-                tax_amount = sum([line.taxableItems[0].amount for line in invoice_lines])
-
-            taxes.append(TaxTotals(taxType=tax_type, amount=tax_amount))
-    return taxes
+    """Calculate tax totals by summing line-level taxableItems amounts."""                                                            
+    tax_sums = {}                                                      
+    for line in invoice_lines:                                         
+        for tax_item in line.taxableItems:                             
+            tax_type = tax_item.taxType                                
+            if tax_type not in tax_sums:                               
+                tax_sums[tax_type] = 0.0                               
+            tax_sums[tax_type] += tax_item.amount                      
+                                                                        
+    return [TaxTotals(taxType=tax_type, amount=eta_round(amount))      
+            for tax_type, amount in tax_sums.items()] 
 
 
 def get_signatures():

@@ -64,7 +64,7 @@ frappe.ui.form.on('Sales Invoice', {
 			callback: function(r) {
 				if (r.message) {
 					frappe.show_alert('ETA Status Updated');
-					cur_frm.reload_doc();
+					frm.reload_doc();
 				}
 			}
 		})
